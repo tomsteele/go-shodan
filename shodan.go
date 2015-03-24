@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io/ioutil"
 	"net/http"
+	"strings"
 )
 
 // APIHost is the URL of the Shodan API.
@@ -174,7 +175,21 @@ type APIInfo struct {
 	Unlocked     bool   `json:"unlocked"`
 }
 
-// Error used to unmarshal the JSOn response of an error.
+// DNSResolve is used to transform the map[string]string response from '/dns/resolve'
+// into a struct that is a bit easier to work with.
+type DNSResolve struct {
+	Hostname string
+	IP       string
+}
+
+// DNSReverse is used to transform the map[string][]string response from '/dns/reverse'
+// into a struct that is a bit easier to work with.
+type DNSReverse struct {
+	IP        string
+	Hostnames []string
+}
+
+// Error used to unmarshal the JSON response of an error.
 type Error struct {
 	Error string `json:"error"`
 }
@@ -208,12 +223,74 @@ func (c *Client) Host(opts *HostOptions) (*Host, error) {
 	if err != nil {
 		return h, err
 	}
+	if err := checkError(resp, data); err != nil {
+		return h, err
+	}
+	return h, nil
+}
+
+// DNSResolve calls '/dns/resolve' and returns the unmarshaled response.
+func (c *Client) DNSResolve(hostnames []string) ([]DNSResolve, error) {
+	d := []DNSResolve{}
+	resp, err := http.Get(APIHost + "/dns/resolve/?key=" + c.Key + "&hostnames=" + strings.Join(hostnames, ","))
+	if err != nil {
+		return d, err
+	}
+	data, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return d, err
+	}
+	if err := checkError(resp, data); err != nil {
+		return d, err
+	}
+	m := make(map[string]string)
+	if err := json.Unmarshal(data, m); err != nil {
+		return d, err
+	}
+	for k, v := range m {
+		d = append(d, DNSResolve{
+			Hostname: k,
+			IP:       v,
+		})
+	}
+	return d, nil
+}
+
+// DNSReverse calls '/dns/reverse' and returns the unmarshaled response.
+func (c *Client) DNSReverse(ips []string) ([]DNSReverse, error) {
+	d := []DNSReverse{}
+	resp, err := http.Get(APIHost + "/dns/resolve/?key=" + c.Key + "ips=" + strings.Join(ips, ","))
+	if err != nil {
+		return d, err
+	}
+	data, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return d, err
+	}
+	if err := checkError(resp, data); err != nil {
+		return d, err
+	}
+	m := make(map[string][]string)
+	if err := json.Unmarshal(data, m); err != nil {
+		return d, err
+	}
+	for k, v := range m {
+		r := DNSReverse{IP: k}
+		for _, n := range v {
+			r.Hostnames = append(r.Hostnames, n)
+		}
+		d = append(d, r)
+	}
+	return d, nil
+}
+
+func checkError(resp *http.Response, data []byte) error {
 	if resp.StatusCode >= 300 {
 		e := &Error{}
 		if err := json.Unmarshal(data, &e); err != nil {
-			return h, err
+			return err
 		}
-		return h, errors.New(e.Error)
+		return errors.New(e.Error)
 	}
-	return h, nil
+	return nil
 }
