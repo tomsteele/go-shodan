@@ -8,7 +8,9 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
+	"time"
 )
 
 // APIHost is the URL of the Shodan API.
@@ -16,7 +18,6 @@ import (
 var (
 	APIHost        = "https://api.shodan.io"
 	ExploitAPIHost = "https://exploits.shodan.io"
-	Debug          = false
 )
 
 // Client stores shared data that is used to interact with the API.
@@ -29,19 +30,19 @@ type Client struct {
 type Exploit struct {
 	Matches []struct {
 		Source      string        `json:"source"`
-		ID          string        `json:"_id"`
+		ID          interface{}   `json:"_id"`
+		Author      interface{}   `json:"author"`
+		Code        interface{}   `json:"code"`
+		Date        time.Time     `json:"date"`
+		Platform    interface{}   `json:"platform"`
+		Port        int           `json:"port"`
+		Type        string        `json:"type"`
 		Description string        `json:"description"`
 		Osvdb       []int         `json:"osvdb"`
 		Bid         []int         `json:"bid"`
-		Cve         string        `json:"cve"`
+		Cve         []string      `json:"cve"`
 		Msb         []interface{} `json:"msb"`
 	} `json:"matches"`
-	Facets struct {
-		Type []struct {
-			Count int    `json:"count"`
-			Value string `json:"value"`
-		} `json:"type"`
-	} `json:"facets"`
 	Total int `json:"total"`
 }
 
@@ -121,13 +122,13 @@ type HostSearch struct {
 			City         interface{} `json:"city"`
 			RegionCode   interface{} `json:"region_code"`
 			AreaCode     interface{} `json:"area_code"`
-			Longitude    int         `json:"longitude"`
+			Longitude    float64     `json:"longitude"`
 			CountryCode3 string      `json:"country_code3"`
 			CountryName  string      `json:"country_name"`
 			PostalCode   interface{} `json:"postal_code"`
 			DmaCode      interface{} `json:"dma_code"`
 			CountryCode  string      `json:"country_code"`
-			Latitude     int         `json:"latitude"`
+			Latitude     float64     `json:"latitude"`
 		} `json:"location"`
 		IP      int64         `json:"ip"`
 		Domains []interface{} `json:"domains"`
@@ -433,7 +434,7 @@ func (c *Client) Exploits(query string, facets []string) (*Exploit, error) {
 	opts.Set("key", c.Key)
 	opts.Set("facets", strings.Join(facets, ","))
 	opts.Set("query", query)
-	req, err := http.NewRequest("GET", ExploitAPIHost+"/api/exploits?"+opts.Encode(), nil)
+	req, err := http.NewRequest("GET", ExploitAPIHost+"/api/search?"+opts.Encode(), nil)
 	debug("GET " + req.URL.String())
 	if err != nil {
 		return e, err
@@ -473,7 +474,7 @@ func checkError(resp *http.Response, data []byte) error {
 }
 
 func debug(msg string) {
-	if Debug {
+	if os.Getenv("SHODAN_DEBUG") != "" {
 		log.Println(msg)
 	}
 }
