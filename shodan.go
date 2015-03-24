@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 )
 
@@ -23,55 +24,54 @@ type Client struct {
 	Key string
 }
 
-// HostOptions are used to pass parameters to the Host function.
-type HostOptions struct {
-	IP      string
-	History bool
-	Minify  bool
-}
-
 // Host is used to unmarshal the JSON response from '/shodan/host/{ip}'.
 type Host struct {
-	RegionCode  interface{}   `json:"region_code"`
-	IP          string        `json:"ip"`
-	AreaCode    interface{}   `json:"area_code"`
-	CountryName string        `json:"country_name"`
-	Hostnames   []interface{} `json:"hostnames"`
-	PostalCode  interface{}   `json:"postal_code"`
-	DmaCode     interface{}   `json:"dma_code"`
-	CountryCode string        `json:"country_code"`
+	RegionCode  string   `json:"region_code"`
+	IP          int      `json:"ip"`
+	AreaCode    int      `json:"area_code"`
+	Latitude    float64  `json:"latitude"`
+	Hostnames   []string `json:"hostnames"`
+	PostalCode  string   `json:"postal_code"`
+	DmaCode     int      `json:"dma_code"`
+	CountryCode string   `json:"country_code"`
+	Org         string   `json:"org"`
 	Data        []struct {
-		Product    string        `json:"product"`
-		Os         interface{}   `json:"os"`
-		Timestamp  string        `json:"timestamp"`
-		Isp        string        `json:"isp"`
-		Asn        string        `json:"asn"`
-		Banner     string        `json:"banner"`
-		Hostnames  []interface{} `json:"hostnames"`
-		Devicetype string        `json:"devicetype"`
-		Location   struct {
-			City         interface{} `json:"city"`
-			RegionCode   interface{} `json:"region_code"`
-			AreaCode     interface{} `json:"area_code"`
-			Longitude    int         `json:"longitude"`
-			CountryCode3 string      `json:"country_code3"`
-			CountryName  string      `json:"country_name"`
-			PostalCode   interface{} `json:"postal_code"`
-			DmaCode      interface{} `json:"dma_code"`
-			CountryCode  string      `json:"country_code"`
-			Latitude     int         `json:"latitude"`
-		} `json:"location"`
-		IP      string        `json:"ip"`
-		Domains []interface{} `json:"domains"`
-		Org     string        `json:"org"`
-		Port    int           `json:"port"`
+		Product string `json:"product"`
+		Title   string `json:"title"`
 		Opts    struct {
 		} `json:"opts"`
+		Timestamp string   `json:"timestamp"`
+		Isp       string   `json:"isp"`
+		Cpe       []string `json:"cpe"`
+		Data      string   `json:"data"`
+		HTML      string   `json:"html"`
+		Location  struct {
+			City         string  `json:"city"`
+			RegionCode   string  `json:"region_code"`
+			AreaCode     int     `json:"area_code"`
+			Longitude    float64 `json:"longitude"`
+			CountryCode3 string  `json:"country_code3"`
+			Latitude     float64 `json:"latitude"`
+			PostalCode   string  `json:"postal_code"`
+			DmaCode      int     `json:"dma_code"`
+			CountryCode  string  `json:"country_code"`
+			CountryName  string  `json:"country_name"`
+		} `json:"location"`
+		IP        int         `json:"ip"`
+		Domains   []string    `json:"domains"`
+		Org       string      `json:"org"`
+		Os        interface{} `json:"os"`
+		Port      int         `json:"port"`
+		Hostnames []string    `json:"hostnames"`
+		IPStr     string      `json:"ip_str"`
 	} `json:"data"`
-	City         interface{} `json:"city"`
-	Longitude    int         `json:"longitude"`
+	City         string      `json:"city"`
+	Isp          string      `json:"isp"`
+	Longitude    float64     `json:"longitude"`
+	LastUpdate   string      `json:"last_update"`
 	CountryCode3 string      `json:"country_code3"`
-	Latitude     int         `json:"latitude"`
+	CountryName  string      `json:"country_name"`
+	IPStr        string      `json:"ip_str"`
 	Os           interface{} `json:"os"`
 	Ports        []int       `json:"ports"`
 }
@@ -205,28 +205,17 @@ func New(key string) *Client {
 }
 
 // Host calls '/shodan/host/{ip}' and returns the unmarshaled response.
-func (c *Client) Host(opts *HostOptions) (*Host, error) {
+// ip is the IP address to search for and opts are all query paramters to pass
+// in the request. You do not have to provide your API key.
+func (c *Client) Host(ip string, opts url.Values) (*Host, error) {
 	h := &Host{}
-	client := &http.Client{}
-	req, err := http.NewRequest("GET", APIHost+"/shodan/host/"+opts.IP+"&key="+c.Key, nil)
+	opts.Set("key", c.Key)
+	req, err := http.NewRequest("GET", APIHost+"/shodan/host/"+ip+"?"+opts.Encode(), nil)
+	debug("GET " + req.URL.String())
 	if err != nil {
 		return h, err
 	}
-	if opts.Minify {
-		req.URL.Query().Set("minify", "true")
-	}
-	if opts.History {
-		req.URL.Query().Set("history", "true")
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return h, err
-	}
-	data, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return h, err
-	}
-	if err := checkError(resp, data); err != nil {
+	if err := doRequestAndUnmarshal(req, &h); err != nil {
 		return h, err
 	}
 	return h, nil
@@ -236,6 +225,7 @@ func (c *Client) Host(opts *HostOptions) (*Host, error) {
 func (c *Client) DNSResolve(hostnames []string) ([]DNSResolve, error) {
 	d := []DNSResolve{}
 	req, err := http.NewRequest("GET", APIHost+"/dns/resolve?key="+c.Key+"&hostnames="+strings.Join(hostnames, ","), nil)
+	debug("GET " + req.URL.String())
 	if err != nil {
 		return d, err
 	}

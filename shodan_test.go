@@ -1,10 +1,28 @@
 package shodan
 
 import (
+	"net/url"
 	"os"
 	"strings"
 	"testing"
 )
+
+func TestHost(t *testing.T) {
+	k := os.Getenv("SHODAN_API_KEY")
+	if k == "" {
+		t.Fatal("SHODAN_API_KEY environment variable not set")
+	}
+	c := New(k)
+
+	result, err := c.Host("104.131.56.170", url.Values{})
+	if err != nil {
+		t.Error("error returned from Host")
+		t.Log(err)
+	}
+	if len(result.Ports) < 0 {
+		t.Error("no ports returned")
+	}
+}
 
 func TestResolve(t *testing.T) {
 	k := os.Getenv("SHODAN_API_KEY")
