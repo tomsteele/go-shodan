@@ -14,14 +14,35 @@ import (
 // APIHost is the URL of the Shodan API.
 // Debug toggles debug information.
 var (
-	APIHost = "https://api.shodan.io"
-	Debug   = false
+	APIHost        = "https://api.shodan.io"
+	ExploitAPIHost = "https://exploits.shodan.io"
+	Debug          = false
 )
 
 // Client stores shared data that is used to interact with the API.
 // Key is our Shodan API Key.
 type Client struct {
 	Key string
+}
+
+// Exploit is used to unmarshal the JSON response from '/api/search'.
+type Exploit struct {
+	Matches []struct {
+		Source      string        `json:"source"`
+		ID          string        `json:"_id"`
+		Description string        `json:"description"`
+		Osvdb       []int         `json:"osvdb"`
+		Bid         []int         `json:"bid"`
+		Cve         string        `json:"cve"`
+		Msb         []interface{} `json:"msb"`
+	} `json:"matches"`
+	Facets struct {
+		Type []struct {
+			Count int    `json:"count"`
+			Value string `json:"value"`
+		} `json:"type"`
+	} `json:"facets"`
+	Total int `json:"total"`
 }
 
 // Host is used to unmarshal the JSON response from '/shodan/host/{ip}'.
@@ -400,6 +421,25 @@ func (c *Client) DNSReverse(ips []string) ([]DNSReverse, error) {
 		d = append(d, r)
 	}
 	return d, nil
+}
+
+// Exploits calls '/api/exploits' from the exploit API and returns
+// the unmarshalled response.
+// query is the search query string.
+// facets are any facets to add to the request.
+func (c *Client) Exploits(query string, facets []string) (*Exploit, error) {
+	e := &Exploit{}
+	opts := url.Values{}
+	opts.Set("key", c.Key)
+	opts.Set("facets", strings.Join(facets, ","))
+	opts.Set("query", query)
+	req, err := http.NewRequest("GET", ExploitAPIHost+"/api/exploits?"+opts.Encode(), nil)
+	debug("GET " + req.URL.String())
+	if err != nil {
+		return e, err
+	}
+	err = doRequestAndUnmarshal(req, &e)
+	return e, err
 }
 
 func doRequestAndUnmarshal(req *http.Request, thing interface{}) error {
