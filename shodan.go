@@ -135,6 +135,7 @@ type HostSearchTokens struct {
 }
 
 // Scan is used to unmarshal the JSON response from '/shodan/scan'.
+// This is not implemented.
 type Scan struct {
 	ID          string `json:"id"`
 	Count       int    `json:"count"`
@@ -142,6 +143,7 @@ type Scan struct {
 }
 
 // ScanInternet is used to unmarshal the JSON response from '/shodan/scan/internet'.
+// This is not implemented.
 type ScanInternet struct {
 	ID string `json:"id"`
 }
@@ -204,9 +206,9 @@ func New(key string) *Client {
 	}
 }
 
-// Host calls '/shodan/host/{ip}' and returns the unmarshaled response.
-// ip is the IP address to search for and opts are all query paramters to pass
-// in the request. You do not have to provide your API key.
+// Host calls '/shodan/host/{ip}' and returns the unmarshalled response.
+// ip is the IP address to search for.
+// opts are all query paramters to pass in the request. You do not have to provide your API key.
 func (c *Client) Host(ip string, opts url.Values) (*Host, error) {
 	h := &Host{}
 	opts.Set("key", c.Key)
@@ -215,13 +217,149 @@ func (c *Client) Host(ip string, opts url.Values) (*Host, error) {
 	if err != nil {
 		return h, err
 	}
-	if err := doRequestAndUnmarshal(req, &h); err != nil {
-		return h, err
-	}
-	return h, nil
+	err = doRequestAndUnmarshal(req, &h)
+	return h, err
 }
 
-// DNSResolve calls '/dns/resolve' and returns the unmarshaled response.
+// HostCount calls '/shodan/host/count' and returns the unmarshalled response.
+// query is the search query to pass in the request.
+// facets are any facets to pass in the request.
+func (c *Client) HostCount(query string, facets []string) (*HostCount, error) {
+	h := &HostCount{}
+	opts := url.Values{}
+	opts.Set("key", c.Key)
+	opts.Set("facets", strings.Join(facets, ","))
+	opts.Set("query", query)
+	req, err := http.NewRequest("GET", APIHost+"/shodan/host/count?"+opts.Encode(), nil)
+	debug("GET " + req.URL.String())
+	if err != nil {
+		return h, err
+	}
+	err = doRequestAndUnmarshal(req, &h)
+	return h, err
+}
+
+// HostSearch calls '/shodan/host/search' and returns the unmarshalled response.
+// query is the search query to pass in the request.
+// facets are any facets to pass in the request.
+// opts are any additional query parameters to set, such as page and minify.
+func (c *Client) HostSearch(query string, facets []string, opts url.Values) (*HostSearch, error) {
+	h := &HostSearch{}
+	opts.Set("key", c.Key)
+	opts.Set("facets", strings.Join(facets, ","))
+	opts.Set("query", query)
+	req, err := http.NewRequest("GET", APIHost+"/shodan/host/search?"+opts.Encode(), nil)
+	debug("GET " + req.URL.String())
+	if err != nil {
+		return h, err
+	}
+	err = doRequestAndUnmarshal(req, &h)
+	return h, err
+}
+
+// HostSearchTokens calls '/shodan/host/search/tokens' and returns the unmarshalled response.
+// query is the search query to pass in the request.
+func (c *Client) HostSearchTokens(query string) (*HostSearchTokens, error) {
+	h := &HostSearchTokens{}
+	opts := url.Values{}
+	opts.Set("key", c.Key)
+	opts.Set("query", query)
+	req, err := http.NewRequest("GET", APIHost+"/shodan/host/search/tokens?"+opts.Encode(), nil)
+	debug("GET " + req.URL.String())
+	if err != nil {
+		return h, err
+	}
+	err = doRequestAndUnmarshal(req, &h)
+	return h, err
+}
+
+// Protocols calls '/shodan/protocols' and returns the unmarshalled response.
+func (c *Client) Protocols() (map[string]string, error) {
+	m := make(map[string]string)
+	opts := url.Values{}
+	opts.Set("key", c.Key)
+	req, err := http.NewRequest("GET", APIHost+"/shodan/protocols?"+opts.Encode(), nil)
+	debug("GET " + req.URL.String())
+	if err != nil {
+		return m, err
+	}
+	err = doRequestAndUnmarshal(req, &m)
+	return m, err
+}
+
+// Services calls '/shodan/services' and returns the unmarshalled response.
+func (c *Client) Services() (map[string]string, error) {
+	m := make(map[string]string)
+	opts := url.Values{}
+	opts.Set("key", c.Key)
+	req, err := http.NewRequest("GET", APIHost+"/shodan/services?"+opts.Encode(), nil)
+	debug("GET " + req.URL.String())
+	if err != nil {
+		return m, err
+	}
+	err = doRequestAndUnmarshal(req, &m)
+	return m, err
+}
+
+// Query calls '/shodan/query' and returns the unmarshalled response.
+// opts are additional query parameters. You do not need to provide your API key.
+func (c *Client) Query(opts url.Values) (*Query, error) {
+	q := &Query{}
+	opts.Set("key", c.Key)
+	req, err := http.NewRequest("GET", APIHost+"/shodan/query?"+opts.Encode(), nil)
+	debug("GET " + req.URL.String())
+	if err != nil {
+		return q, err
+	}
+	err = doRequestAndUnmarshal(req, &q)
+	return q, err
+}
+
+// QuerySearch calls '/shodan/query/search' and returns the unmarshalled response.
+// query is the search query to pass in the request.
+// opts are additional query parameters. You do not need to provide your API key.
+func (c *Client) QuerySearch(query string, opts url.Values) (*Query, error) {
+	q := &Query{}
+	opts.Set("key", c.Key)
+	opts.Set("query", query)
+	req, err := http.NewRequest("GET", APIHost+"/shodan/query/search?"+opts.Encode(), nil)
+	debug("GET " + req.URL.String())
+	if err != nil {
+		return q, err
+	}
+	err = doRequestAndUnmarshal(req, &q)
+	return q, err
+}
+
+// QueryTags calls '/shodan/query/tags' and returns the unmarshalled response.
+// opts are additional query parameters. You do not need to provide your API key.
+func (c *Client) QueryTags(opts url.Values) (*QueryTags, error) {
+	q := &QueryTags{}
+	opts.Set("key", c.Key)
+	req, err := http.NewRequest("GET", APIHost+"/shodan/query/tags?"+opts.Encode(), nil)
+	debug("GET " + req.URL.String())
+	if err != nil {
+		return q, err
+	}
+	err = doRequestAndUnmarshal(req, &q)
+	return q, err
+}
+
+// APIInfo calls '/api-info' and returns the unmarshalled response.
+func (c *Client) APIInfo() (*APIInfo, error) {
+	i := &APIInfo{}
+	opts := url.Values{}
+	opts.Set("key", c.Key)
+	req, err := http.NewRequest("GET", APIHost+"/api-info?"+opts.Encode(), nil)
+	debug("GET " + req.URL.String())
+	if err != nil {
+		return i, err
+	}
+	err = doRequestAndUnmarshal(req, &i)
+	return i, err
+}
+
+// DNSResolve calls '/dns/resolve' and returns the unmarshalled response.
 func (c *Client) DNSResolve(hostnames []string) ([]DNSResolve, error) {
 	d := []DNSResolve{}
 	req, err := http.NewRequest("GET", APIHost+"/dns/resolve?key="+c.Key+"&hostnames="+strings.Join(hostnames, ","), nil)
@@ -242,7 +380,7 @@ func (c *Client) DNSResolve(hostnames []string) ([]DNSResolve, error) {
 	return d, nil
 }
 
-// DNSReverse calls '/dns/reverse' and returns the unmarshaled response.
+// DNSReverse calls '/dns/reverse' and returns the unmarshalled response.
 func (c *Client) DNSReverse(ips []string) ([]DNSReverse, error) {
 	d := []DNSReverse{}
 	req, err := http.NewRequest("GET", APIHost+"/dns/reverse?key="+c.Key+"&ips="+strings.Join(ips, ","), nil)
