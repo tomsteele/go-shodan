@@ -1,6 +1,18 @@
 /*Package shodan is an interface for the Shodan API*/
 package shodan
 
+import (
+	"encoding/json"
+	"errors"
+	"io/ioutil"
+	"net/http"
+)
+
+// APIHost is the URL of the Shodan API.
+var (
+	APIHost = "https://api.shodan.io"
+)
+
 // Client stores shared data that is used to interact with the API.
 // Key is our Shodan API Key.
 type Client struct {
@@ -174,6 +186,34 @@ func New(key string) *Client {
 	}
 }
 
-// Host calls '/shodan/host/{ip}'.
-func (c *Client) Host(*HostOptions) {
+// Host calls '/shodan/host/{ip}' and returns the unmarshaled response.
+func (c *Client) Host(opts *HostOptions) (*Host, error) {
+	h := &Host{}
+	client := &http.Client{}
+	req, err := http.NewRequest("GET", APIHost+"/shodan/host/"+opts.IP+"&key="+c.Key, nil)
+	if err != nil {
+		return h, err
+	}
+	if opts.Minify {
+		req.URL.Query().Set("minify", "true")
+	}
+	if opts.History {
+		req.URL.Query().Set("history", "true")
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return h, err
+	}
+	data, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return h, err
+	}
+	if resp.StatusCode >= 300 {
+		e := &Error{}
+		if err := json.Unmarshal(data, &e); err != nil {
+			return h, err
+		}
+		return h, errors.New(e.Error)
+	}
+	return h, nil
 }
