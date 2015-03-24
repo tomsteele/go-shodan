@@ -5,13 +5,16 @@ import (
 	"encoding/json"
 	"errors"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"strings"
 )
 
 // APIHost is the URL of the Shodan API.
+// Debug toggles debug information.
 var (
 	APIHost = "https://api.shodan.io"
+	Debug   = false
 )
 
 // Client stores shared data that is used to interact with the API.
@@ -232,19 +235,12 @@ func (c *Client) Host(opts *HostOptions) (*Host, error) {
 // DNSResolve calls '/dns/resolve' and returns the unmarshaled response.
 func (c *Client) DNSResolve(hostnames []string) ([]DNSResolve, error) {
 	d := []DNSResolve{}
-	resp, err := http.Get(APIHost + "/dns/resolve/?key=" + c.Key + "&hostnames=" + strings.Join(hostnames, ","))
+	req, err := http.NewRequest("GET", APIHost+"/dns/resolve?key="+c.Key+"&hostnames="+strings.Join(hostnames, ","), nil)
 	if err != nil {
-		return d, err
-	}
-	data, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return d, err
-	}
-	if err := checkError(resp, data); err != nil {
 		return d, err
 	}
 	m := make(map[string]string)
-	if err := json.Unmarshal(data, m); err != nil {
+	if err := doRequestAndUnmarshal(req, &m); err != nil {
 		return d, err
 	}
 	for k, v := range m {
@@ -259,19 +255,13 @@ func (c *Client) DNSResolve(hostnames []string) ([]DNSResolve, error) {
 // DNSReverse calls '/dns/reverse' and returns the unmarshaled response.
 func (c *Client) DNSReverse(ips []string) ([]DNSReverse, error) {
 	d := []DNSReverse{}
-	resp, err := http.Get(APIHost + "/dns/resolve/?key=" + c.Key + "ips=" + strings.Join(ips, ","))
+	req, err := http.NewRequest("GET", APIHost+"/dns/reverse?key="+c.Key+"&ips="+strings.Join(ips, ","), nil)
+	debug("GET " + req.URL.String())
 	if err != nil {
-		return d, err
-	}
-	data, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return d, err
-	}
-	if err := checkError(resp, data); err != nil {
 		return d, err
 	}
 	m := make(map[string][]string)
-	if err := json.Unmarshal(data, m); err != nil {
+	if err := doRequestAndUnmarshal(req, &m); err != nil {
 		return d, err
 	}
 	for k, v := range m {
@@ -284,13 +274,38 @@ func (c *Client) DNSReverse(ips []string) ([]DNSReverse, error) {
 	return d, nil
 }
 
+func doRequestAndUnmarshal(req *http.Request, thing interface{}) error {
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	data, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+	if err := checkError(resp, data); err != nil {
+		return err
+	}
+	err = json.Unmarshal(data, &thing)
+	return err
+}
+
 func checkError(resp *http.Response, data []byte) error {
 	if resp.StatusCode >= 300 {
+		debug("Non 2XX response")
 		e := &Error{}
 		if err := json.Unmarshal(data, &e); err != nil {
+			debug("Error parsing JSON")
 			return err
 		}
 		return errors.New(e.Error)
 	}
 	return nil
+}
+
+func debug(msg string) {
+	if Debug {
+		log.Println(msg)
+	}
 }
